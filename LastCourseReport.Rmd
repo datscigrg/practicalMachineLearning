@@ -86,7 +86,7 @@ modGbm$resample$Accuracy
 ## Prediction and cross validation of the validation data
 
 Now the out-of sample error rate is calculated. Now the split of the data into two groups is relevant. The validationData is used together with the boosted model modGbm to obtain a prediction. Moreover, the validationData are used to cross validate the model modGbm and to estimate the quality of the model modGbm. The confusion matrix of this prediction is calculated using the prediction and the classe. The output of the caret function confusionmatrix provides the accuracy. The out-of sample error rate is obtained by the formaula 1 - accuracy.
-The resulting out-of sample error of 0.006373 is more than acceptable. 
+The resulting out-of sample error of 0.007137 is more than acceptable. 
 
 ```{r}
 predGbm <- predict(modGbm,validationData)
