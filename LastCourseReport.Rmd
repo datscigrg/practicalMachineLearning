@@ -1,0 +1,109 @@
+Predicting body movement using smart phone data
+========================================================
+This project aims at the prediction whether barbell lifts are in done a correct or incorrect way by 6 different participants. A barbell lift may be done in five different ways and accelerometers on the arm, belt, forearm and dumbell are used to measure and provide the movement data. The website http://groupware.les.inf.puc-rio.br/har (http://groupware.les.inf.puc-rio.br/har) provides more information about the data.
+
+```{r message=FALSE, cache=FALSE}
+library(caret)
+library(doMC)
+library(ggplot2)
+library(gbm)
+library(plyr)
+```
+## Reading and cleaning the training data
+The data frame training is used to keep the data read from the csv file. The columns where for all rows the value is NA are removed. All columns are converted into the numeric data type. The first seven columns given in the vector remove are removed from the data frame containing the data of the csv file. 
+ 
+```{r}
+completeData <- read.csv(file = '/home/luke/Desktop/PracticalMachineLearning/pml-training.csv',na.strings = c('NA','#DIV/0!',''))
+
+for(i in c(8:ncol(completeData)-1)) {
+  completeData[,i] = as.numeric(as.character(completeData[,i]))
+}
+
+index <- colnames(completeData[colSums(is.na(completeData)) == 0])
+remove = c('X', 'user_name', 'raw_timestamp_part_1', 'raw_timestamp_part_2', 'cvtd_timestamp', 'new_window', 'num_window')
+index <- index[!index %in% remove]
+```
+## Obtaining the training and validation data
+In order to get the training and validation data the data frame completeData is split into two groups using the function createDataPartition. The training data is used for the training purposes and the validation data is used for the cross validation later on. The training data consists of 80% of the completeData whereas the validation data consists of the remaining 20%. 
+
+```{r}
+set.seed(1300)
+trainingIndex <- createDataPartition(y=completeData$classe, p=0.80, list=FALSE)
+trainingData <- completeData[trainingIndex,index]
+validationData <- completeData[-trainingIndex,index]
+dim(trainingData); 
+dim(validationData)
+```
+Stochastic gradient boosting is used for the machine learning algorithm. Boosting is a comparatively new method in the machine learning field. The idea is to combine weak learners into a stronger one [1]. There are two different algorithms for boosting. The first one is Adaboost and the second one is the arcing algorithm [3]. 
+The gbm package implementing Adaboost is used to fit a boosted tree model. The gbmGrid variable is used to tune/set the parameters of the boosting algorithm. 
+There exist three main tuning parameters for a gradient boosting machine (GBM) model [2]: 
+  1. The number of iterations, i.e. trees. This parameter is called n.trees in the gbm package.
+  2. The complexity of the tree. This parameter is called interaction.depth.
+  3. The learning rate describing how quickly the algorithm adapts. This parameter is called shrinkage.
+
+The tuning grid dimensions are defined as the values for interaction.depth, n.trees, shrinkage. 5-fold cross-validation is chosen as parameter. It is necessary to tune the parameters using several values to get an acceptable result. The training using boosting has a remarkable resource consumption on the personal computer of the author. The computation needed the complete 8 GB RAM and the computing used the complete computing power of several CPUs. Therefore the doMC package is used supporting the parallel processing of the calculation. 
+
+```{r}
+gbmGrid <- expand.grid(.interaction.depth = 2,
+                       .n.trees = (1:3)*50,
+                       .shrinkage = 0.1)
+
+
+registerDoMC(cores = 3)
+
+
+modGbm0 <- train(classe ~ .,
+                data = trainingData, 
+                method = 'gbm',
+                tuneGrid= gbmGrid,
+                trControl = trainControl(method = "cv", 
+                                         number = 5,  
+                                         verboseIter = TRUE))
+```
+## Parameter impact on the trained model
+At first a number of boosting attempts is performed to find out which impact the relevant parameters have on the trained model. Some figures are shown to describe the impact of the parameters using stochastic gradient boosting [2]. The first figure shows the accuracy of the output for the train function using gbm versus the boosting iterations. The accuracy increases clearly depending on the number of iterations. Several iterations are required to obtain an accurate result. Moreover, the second plot lists the variables with respect to their impact on the trained model. The second figure shows the top 20 of these variables. The variables roll-belt, pitch-forearm and yaw-belt are the most important ones. Then the procedure is repeated to get an acceptable result.
+
+```{r}
+ggplot(modGbm0)
+gbmVarImp<-varImp(modGbm0, scale=FALSE)
+plot(gbmVarImp, top = 20)
+```
+```{r}
+gbmGrid <- expand.grid(.interaction.depth = 3,
+                       .n.trees = 1000,
+                       .shrinkage = 0.05)
+
+modGbm <- train(classe ~ .,
+                data = trainingData, 
+                method = 'gbm',
+                tuneGrid= gbmGrid,
+                trControl = trainControl(method = "cv", 
+                                         number = 5,  
+                                         verboseIter = TRUE))
+
+modGbm$resample$Accuracy
+```
+## Prediction and cross validation of the validation data
+
+Now the out-of sample error rate is calculated. Now the split of the data into two groups is relevant. The validationData is used together with the boosted model modGbm to obtain a prediction. Moreover, the validationData are used to cross validate the model modGbm and to estimate the quality of the model modGbm. The confusion matrix of this prediction is calculated using the prediction and the classe. The output of the caret function confusionmatrix provides the accuracy. The out-of sample error rate is obtained by the formaula 1 - accuracy.
+The resulting out-of sample error of 0.006373 is more than acceptable. 
+
+```{r}
+predGbm <- predict(modGbm,validationData)
+ConfMatrix <- confusionMatrix(predGbm,validationData$classe)
+ConfMatrix
+1- ConfMatrix$overall['Accuracy'][[1]]
+```
+## References
+
+[1] Gareth James, Daniela Witten, Trevor Hastie and Robert Tibshirani:
+An Introduction to Statistical Learning with Applications in R, Springer 2013.
+
+[2] Caret Online Documentation see: http://topepo.github.io/caret/other.html and
+http://topepo.github.io/caret/training.html
+
+[3] Gianluca Bontempi, Souhaib Ben Taieb:
+Statistical foundations of machine learning
+Primary tabs URL: https://www.otexts.org/book/sfml
+
+
