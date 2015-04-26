@@ -27,7 +27,7 @@ index <- index[!index %in% remove]
 In order to get the training and validation data the data frame completeData is split into two groups using the function createDataPartition. The training data is used for the training purposes and the validation data is used for the cross validation later on. The training data consists of 80% of the completeData whereas the validation data consists of the remaining 20%. 
 
 ```{r}
-set.seed(1300)
+set.seed(1234)
 trainingIndex <- createDataPartition(y=completeData$classe, p=0.80, list=FALSE)
 trainingData <- completeData[trainingIndex,index]
 validationData <- completeData[-trainingIndex,index]
